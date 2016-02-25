@@ -68,8 +68,7 @@ class system_callback:
                                false, 5>
 {
 public:
-    virtual ~system_callback(void)
-    {}
+    virtual ~system_callback(void) = default;
 
     virtual void run(void) = 0;
 };
@@ -87,7 +86,7 @@ public:
     {}
 
 private:
-    virtual void run(void)
+    virtual void run(void) override
     {
         delete ptr_;
     }

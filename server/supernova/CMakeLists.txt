@@ -28,7 +28,6 @@ set(libsupernova_src
     ${CMAKE_SOURCE_DIR}/common/SC_StringParser.cpp
     ${CMAKE_SOURCE_DIR}/common/SC_StandAloneInfo_Darwin.cpp
     server/buffer_manager.cpp
-    server/dsp_context.cpp
     server/memory_pool.cpp
     server/node_graph.cpp
     server/server.cpp
@@ -62,7 +61,7 @@ if(NOT WIN32)
                PROPERTY OUTPUT_NAME supernova)
 endif()
 
-target_link_libraries(libsupernova oscpack tlsf ${PTHREADS_LIBRARIES})
+target_link_libraries(libsupernova oscpack tlsf ${PTHREADS_LIBRARIES} boost_thread)
 
 target_compile_definitions(libsupernova PUBLIC SUPERNOVA)
 target_include_directories(libsupernova PUBLIC
@@ -132,12 +131,13 @@ if(Boost_FOUND)
     target_include_directories(libsupernova PUBLIC ${Boost_INCLUDE_DIRS})
 else()
     target_include_directories(libsupernova PUBLIC ${CMAKE_SOURCE_DIR}/external_libraries/boost)
-    target_link_libraries(libsupernova boost_system boost_filesystem boost_program_options boost_thread)
+    target_link_libraries(libsupernova boost_system boost_filesystem boost_program_options)
 endif()
 
-
-if( ${_gcc_version} VERSION_GREATER 5 )
-  target_link_libraries( libsupernova atomic )
+if(CMAKE_COMPILER_IS_GNUCXX)
+    if( ${_gcc_version} VERSION_GREATER 5 )
+      target_link_libraries( libsupernova atomic )
+    endif()
 endif()
 
 if(WIN32)
@@ -173,5 +173,5 @@ endif()
 
 if (APPLE)
     target_link_libraries(libsupernova "-framework Accelerate")
-    target_link_libraries(libsupernova "-framework CoreAudio -framework CoreServices -framework Foundation")
+    target_link_libraries(libsupernova "-framework CoreAudio -framework CoreServices -framework Foundation -framework ApplicationServices")
 endif()

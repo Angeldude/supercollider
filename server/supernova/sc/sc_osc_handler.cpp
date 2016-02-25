@@ -163,7 +163,7 @@ struct movable_string
     }
 
 private:
-    const char * data_;
+    const char * data_ = nullptr;
 };
 
 template <typename T>
@@ -208,7 +208,7 @@ struct movable_array
     }
 
 private:
-    size_t length_;
+    size_t length_ = 0;
     T * data_;
 };
 
@@ -276,7 +276,7 @@ struct fn_system_callback:
         fn_(fn)
     {}
 
-    void run(void)
+    void run(void) override
     {
         fn_();
     }
@@ -292,7 +292,7 @@ struct fn_sync_callback:
         fn_(fn)
     {}
 
-    void run(void)
+    void run(void) override
     {
         fn_();
     }
@@ -402,7 +402,7 @@ void fire_notification(movable_array<char> & msg)
 
 int sc_notify_observers::add_observer(endpoint_ptr const & ep)
 {
-    observer_vector::iterator it = find(ep);
+    auto it = find(ep);
     if (it != observers.end())
         return already_registered;
 
@@ -412,7 +412,7 @@ int sc_notify_observers::add_observer(endpoint_ptr const & ep)
 
 int sc_notify_observers::remove_observer(endpoint_ptr const & ep)
 {
-    observer_vector::iterator it = find(ep);
+    auto it = find(ep);
 
     if (it == observers.end())
         return not_registered;
@@ -442,7 +442,7 @@ const char * sc_notify_observers::error_string(error_code error)
 
 sc_notify_observers::observer_vector::iterator sc_notify_observers::find(endpoint_ptr const & ep)
 {
-    for (observer_vector::iterator it = observers.begin(); it != observers.end(); ++it) {
+    for (auto it = observers.begin(); it != observers.end(); ++it) {
 
         udp_endpoint * elemUDP = dynamic_cast<udp_endpoint*>(it->get());
         udp_endpoint * testUDP = dynamic_cast<udp_endpoint*>(ep.get());
@@ -695,7 +695,7 @@ void sc_osc_handler::handle_receive_udp(const boost::system::error_code& error,
 void sc_osc_handler::tcp_connection::start(sc_osc_handler * self)
 {
     using namespace boost;
-    typedef boost::integer::big32_t big32_t;
+    typedef boost::endian::big_int32_t big_int32_t;
     asio::ip::tcp::no_delay option(true);
     socket_.set_option(option);
 
@@ -703,10 +703,10 @@ void sc_osc_handler::tcp_connection::start(sc_osc_handler * self)
 
     if (check_password) {
         std::array<char, 32> password;
-        big32_t msglen;
+        big_int32_t msglen;
         for (unsigned int i=0; i!=4; ++i) {
             size_t size = socket_.receive(asio::buffer(&msglen, 4));
-            if (size != sizeof(big32_t))
+            if (size != sizeof(big_int32_t))
                 return;
 
             if (msglen > password.size())
@@ -731,11 +731,15 @@ void sc_osc_handler::tcp_connection::start(sc_osc_handler * self)
 
 void sc_osc_handler::tcp_connection::send(const char *data, size_t length)
 {
-    boost::integer::big32_t len(length);
+    try {
+        boost::endian::big_int32_t len(length);
 
-    socket_.send(boost::asio::buffer(&len, sizeof(len)));
-    size_t written = socket_.send(boost::asio::buffer(data, length));
-    assert(length == written);
+        socket_.send(boost::asio::buffer(&len, sizeof(len)));
+        size_t written = socket_.send(boost::asio::buffer(data, length));
+        assert(length == written);
+    } catch (std::exception const & err) {
+        std::cout << "Exception when sending message over TCP: " << err.what();
+    }
 }
 
 
@@ -811,6 +815,8 @@ void sc_osc_handler::handle_packet_async(const char * data, size_t length,
                                          endpoint_ptr const & endpoint)
 {
     received_packet * p = received_packet::alloc_packet(data, length, endpoint);
+    if( !p )
+        return;
 
     if (dump_osc_packets == 1) {
         osc_received_packet packet (data, length);
@@ -846,6 +852,11 @@ sc_osc_handler::received_packet::alloc_packet(const char * data, size_t length,
 {
     /* received_packet struct and data array are located in one memory chunk */
     void * chunk = received_packet::allocate(sizeof(received_packet) + length);
+    if( !chunk ) {
+        std::cerr << "Memory allocation failure: OSC message not handled\n";
+        return nullptr;
+    }
+
     received_packet * p = (received_packet*)chunk;
     char * cpy = (char*)(chunk) + sizeof(received_packet);
     memcpy(cpy, data, length);
@@ -882,8 +893,8 @@ void sc_osc_handler::handle_bundle(received_bundle const & bundle, endpoint_ptr 
     if (bundle_time <= now) {
         if (!bundle_time.is_immediate()) {
             time_tag late = now - bundle_time;
-            log_printf("late: %zu.%09zu\n", late.get_secs(), late.get_nanoseconds());
-	};
+            log_printf("late: %f\n", late.to_seconds());
+        };
         for (bundle_iterator it = bundle.ElementsBegin(); it != bundle.ElementsEnd(); ++it) {
             bundle_element const & element = *it;
 
@@ -1068,7 +1079,7 @@ static bool node_position_sanity_check(node_position_constraint const & constrai
 sc_synth * add_synth(const char * name, int node_id, int action, int target_id)
 {
     if (!check_node_id(node_id))
-        return 0;
+        return nullptr;
 
     server_node * target = find_node(target_id);
     if (target == nullptr)
@@ -1993,9 +2004,9 @@ struct completion_message
     void trigger_async(endpoint_ptr endpoint)
     {
         if (size_) {
-            sc_osc_handler::received_packet * p =
-                sc_osc_handler::received_packet::alloc_packet((char*)data_, size_, endpoint);
-            instance->add_sync_callback(p);
+            sc_osc_handler::received_packet * p = sc_osc_handler::received_packet::alloc_packet((char*)data_, size_, endpoint);
+            if( p )
+                instance->add_sync_callback(p);
         }
     }
 
@@ -2014,7 +2025,7 @@ struct completion_message
 
 completion_message extract_completion_message(osc::ReceivedMessageArgumentStream & args)
 {
-    osc::Blob blob(0, 0);
+    osc::Blob blob(nullptr, 0);
 
     if (!args.Eos()) {
         try {
@@ -2029,7 +2040,7 @@ completion_message extract_completion_message(osc::ReceivedMessageArgumentStream
 
 completion_message extract_completion_message(osc::ReceivedMessageArgumentIterator & it)
 {
-    const void * data = 0;
+    const void * data = nullptr;
     osc::osc_bundle_element_size_t length = 0;
 
     if (it->IsBlob())
@@ -2287,7 +2298,7 @@ void b_write_nrt_1(uint32_t bufnum, movable_string const & filename, movable_str
 
 void fire_b_write_exception(void)
 {
-    throw std::runtime_error("wrong arguments for /b_allocReadChannel");
+    throw std::runtime_error("wrong arguments for /b_write");
 }
 
 template <bool realtime>

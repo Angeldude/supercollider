@@ -67,13 +67,34 @@ String[char] : RawArray {
 		^Platform.resourceDir
 	}
 
-	compare { arg aString, ignoreCase=false; _StringCompare }
-	< { arg aString; ^this.compare(aString, false) < 0 }
-	> { arg aString; ^this.compare(aString, false) > 0 }
-	<= { arg aString; ^this.compare(aString, false) <= 0 }
-	>= { arg aString; ^this.compare(aString, false) >= 0 }
-	== { arg aString; ^this.compare(aString, false) == 0 }
-	!= { arg aString; ^this.compare(aString, false) != 0 }
+	compare { arg aString, ignoreCase=false;
+		_StringCompare
+		this.primitiveFailed;
+	}
+	< { arg aString;
+		if(aString.isString.not) { ^false };
+		^this.compare(aString, false) < 0
+	}
+	> { arg aString;
+		if(aString.isString.not) { ^false };
+		^this.compare(aString, false) > 0
+	}
+	<= { arg aString;
+		if(aString.isString.not) { ^false };
+		^this.compare(aString, false) <= 0
+	}
+	>= { arg aString;
+		if(aString.isString.not) { ^false };
+		^this.compare(aString, false) >= 0
+	}
+	== { arg aString;
+		if(aString.isString.not) { ^false };
+		^this.compare(aString, false) == 0
+	}
+	!= { arg aString;
+		if(aString.isString.not) { ^true }
+		^this.compare(aString, false) != 0
+	}
 	hash { _StringHash }
 
 	// no sense doing collect as per superclass collection
@@ -200,8 +221,8 @@ String[char] : RawArray {
 	}
 
 	findRegexp { arg regexp, offset = 0;
-       _String_FindRegexp
-       ^this.primitiveFailed
+		_String_FindRegexp
+		^this.primitiveFailed
 	}
 
 	findAllRegexp { arg string, offset = 0;
@@ -234,12 +255,20 @@ String[char] : RawArray {
 		^indices
 	}
 	replace { arg find, replace;
-		^super.replace(find, replace).join
+		var index, out = "", array = this, findSize = max(find.size, 1);
+		while {
+			(index = array.find(find)).notNil
+		}{
+			out = out ++ array.keep(index) ++ replace;
+			array = array.drop(index + findSize);
+		};
+		^out ++ array
 	}
 
 
 	escapeChar { arg charToEscape; // $"
 		_String_EscapeChar
+		^this.primitiveFailed;
 	}
 	shellQuote {
 		^"'"++this.replace("'","'\\''")++"'"
@@ -292,7 +321,7 @@ String[char] : RawArray {
 	*readNew { arg file;
 		^file.readAllString;
 	}
-	prCat { arg aString; _ArrayCat }
+	prCat { arg aString; _ArrayCat; ^this.primitiveFailed; }
 
 	printOn { arg stream;
 		stream.putAll(this);

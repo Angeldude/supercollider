@@ -4263,7 +4263,7 @@ void initWiiPrimitives();
 #endif
 	
 #endif
-#ifdef SC_DARWIN
+#ifdef __APPLE__
 void initCoreAudioPrimitives();
 	initCoreAudioPrimitives();
 #endif
@@ -4298,7 +4298,7 @@ void deinitPrimitives()
 	void deinitHIDAPIPrimitives();
 	deinitHIDAPIPrimitives();
 
-#if defined(HAVE_PORTMIDI)
+#if defined(HAVE_PORTMIDI) || defined(HAVE_ALSA)
 void deinitMIDIPrimitives();
 	deinitMIDIPrimitives();
 #endif

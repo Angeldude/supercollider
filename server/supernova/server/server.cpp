@@ -39,7 +39,7 @@
 namespace nova
 {
 
-class nova_server * instance = 0;
+class nova_server * instance = nullptr;
 
 nova_server::nova_server(server_arguments const & args):
     server_shared_memory_creator(args.port(), args.control_busses),
@@ -55,7 +55,7 @@ nova_server::nova_server(server_arguments const & args):
     if (!args.non_rt)
         io_interpreter.start_thread();
 
-    sc_factory = new sc_ugen_factory;
+    sc_factory.reset( new sc_ugen_factory );
     sc_factory->initialize(args, server_shared_memory_creator::shm->get_control_busses());
 
     /** first guess: needs to be updated, once the backend is started */
@@ -98,7 +98,9 @@ nova_server::~nova_server(void)
 
     scheduler<thread_init_functor>::terminate();
     io_interpreter.join_thread();
-    instance = 0;
+
+    sc_factory.reset();
+    instance = nullptr;
 }
 
 void nova_server::perform_node_add(server_node *node, node_position_constraint const & constraints, bool update_dsp_queue)
@@ -116,8 +118,8 @@ void nova_server::perform_node_add(server_node *node, node_position_constraint c
 abstract_synth * nova_server::add_synth(const char * name, int id, node_position_constraint const & constraints)
 {
     abstract_synth * ret = synth_factory::create_instance(name, id);
-    if (ret == 0)
-        return 0;
+    if (ret == nullptr)
+        return nullptr;
 
     perform_node_add(ret, constraints, true);
     return ret;
@@ -126,8 +128,8 @@ abstract_synth * nova_server::add_synth(const char * name, int id, node_position
 group * nova_server::add_group(int id, node_position_constraint const & constraints)
 {
     group * g = new group(id);
-    if (g == 0)
-        return 0;
+    if (g == nullptr)
+        return nullptr;
 
     perform_node_add(g, constraints, false);
     return g;
@@ -136,8 +138,8 @@ group * nova_server::add_group(int id, node_position_constraint const & constrai
 parallel_group * nova_server::add_parallel_group(int id, node_position_constraint const & constraints)
 {
     parallel_group * g = new parallel_group(id);
-    if (g == 0)
-        return 0;
+    if (g == nullptr)
+        return nullptr;
 
     perform_node_add(g, constraints, false);
     return g;
